@@ -1,4 +1,4 @@
-from moviepy.editor import VideoFileClip
+from moviepy import VideoFileClip
 
 def convert_mov_to_mp4(input_path, output_path):
     # Load the .mov file
