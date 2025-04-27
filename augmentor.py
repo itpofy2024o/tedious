@@ -59,7 +59,7 @@ def augment_images(input_dir, output_dir , images_per_class=500, target_size=(22
                         break
 
                 # Copy the original image to ensure it's included
-                img.save(os.path.join(output_person_path, f'original_{img_file.split(".")[0]}.png'))
+                # img.save(os.path.join(output_person_path, f'original_{img_file.split(".")[0]}.png'))
 
             print(f"Augmented {num_original_images} images for {person_folder} to reach {images_per_class} images.")
 
@@ -67,6 +67,9 @@ if __name__ == "__main__":
     input_image_directory = a  # Replace with the path to your main directory containing 11 folders
     augmented_image_directory = './augmented'  # Directory to save augmented images
     images_per_class = 500
+
+    if os.path.exists(augmented_image_directory):
+        os.system("rm -rf ${}".format(augmented_image_directory))
 
     # Create dummy folders and files for demonstration
     if not os.path.exists(input_image_directory):
