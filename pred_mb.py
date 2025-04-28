@@ -22,6 +22,7 @@ def load_and_preprocess_image(image_path):
     
     # Load image
     img = Image.open(image_path).convert('RGB')
+    print(img.size)
     img = img.resize((img_width, img_height))
     img_array = np.array(img) / 255.0  # Rescale to [0, 1]
     img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
