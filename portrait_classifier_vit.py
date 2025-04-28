@@ -90,7 +90,7 @@ if __name__ == "__main__":
         monitor='val_loss', patience=10, restore_best_weights=True
     )
     checkpoint = tf.keras.callbacks.ModelCheckpoint(
-        'best_vit_model.keras', monitor='val_accuracy', save_best_only=True
+        'best_vit_model{}.keras'.format(outname), monitor='val_accuracy', save_best_only=True
     )
 
     epochs = 50
