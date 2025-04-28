@@ -1,3 +1,4 @@
+import shutil
 import tensorflow as tf
 from tensorflow.keras import layers, models
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
@@ -15,13 +16,13 @@ img_height, img_width = 224, 224
 batch_size = 32
 
 def create_vit_model(img_size, num_classes):
-    """Creates a custom Vision Transformer (ViT-S/16) model."""
-    def vit_s16(input_shape, num_classes):
+    """Creates a lightweight Vision Transformer (ViT-Tiny) model."""
+    def vit_tiny(input_shape, num_classes):
         inputs = layers.Input(shape=input_shape)
         # Patch embedding
         patch_size = 16
         num_patches = (img_size // patch_size) ** 2
-        projection_dim = 384
+        projection_dim = 192  # Reduced from 384
         x = layers.Conv2D(filters=projection_dim, kernel_size=patch_size, strides=patch_size, padding='valid')(inputs)
         x = layers.Reshape((num_patches, projection_dim))(x)
         # Positional embedding
@@ -29,8 +30,8 @@ def create_vit_model(img_size, num_classes):
         pos_embedding = layers.Embedding(input_dim=num_patches, output_dim=projection_dim)(positions)
         x = x + pos_embedding
         # Transformer blocks
-        num_heads = 6
-        for _ in range(12):
+        num_heads = 4  # Reduced from 6
+        for _ in range(8):  # Reduced from 12
             x = layers.LayerNormalization(epsilon=1e-6)(x)
             x = layers.MultiHeadAttention(num_heads=num_heads, key_dim=projection_dim // num_heads)(x, x)
             x = layers.Add()([x, x])
@@ -45,7 +46,7 @@ def create_vit_model(img_size, num_classes):
         outputs = layers.Dense(num_classes, activation='softmax')(x)
         return models.Model(inputs, outputs)
     
-    model = vit_s16((img_size, img_size, 3), num_classes)
+    model = vit_tiny((img_size, img_size, 3), num_classes)
     return model, model
 
 if __name__ == "__main__":
@@ -54,9 +55,8 @@ if __name__ == "__main__":
     if not os.path.exists(train_dir):
         raise FileNotFoundError(f"Directory {train_dir} does not exist.")
     val_dir = './val'
-    if not (os.path.exists(train_dir) and os.path.exists(val_dir)):
-        os.mkdir("val")
-        # raise FileNotFoundError("Run the dataset split command to create ./train and ./val directories.")
+    if os.path.exists(val_dir):
+        shutil.rmtree(val_dir)
     
     # Dynamically determine number of classes
     num_classes = len([f for f in os.listdir(train_dir) if os.path.isdir(os.path.join(train_dir, f))])
@@ -146,7 +146,7 @@ if __name__ == "__main__":
     if val_accuracy < 0.5:
         print("Fine-tuning ViT layers...")
         base_model.trainable = True
-        for layer in base_model.layers[:100]:  # Freeze early layers (approx. first half)
+        for layer in base_model.layers[:50]:  # Freeze early layers (approx. first half)
             layer.trainable = False
         vit_model.compile(
             optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5, weight_decay=0.01),
