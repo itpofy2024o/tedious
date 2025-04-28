@@ -57,6 +57,7 @@ if __name__ == "__main__":
     val_dir = './val'
     if os.path.exists(val_dir):
         shutil.rmtree(val_dir)
+    os.mkdir(val_dir)
     
     # Dynamically determine number of classes
     num_classes = len([f for f in os.listdir(train_dir) if os.path.isdir(os.path.join(train_dir, f))])
@@ -124,7 +125,7 @@ if __name__ == "__main__":
         monitor='val_loss', patience=10, restore_best_weights=True
     )
     checkpoint = tf.keras.callbacks.ModelCheckpoint(
-        'best_vit_model.keras', monitor='val_accuracy', save_best_only=True, mode='max'
+        'best_vit_model1.keras', monitor='val_accuracy', save_best_only=True, mode='max'
     )
 
     # Initial training
