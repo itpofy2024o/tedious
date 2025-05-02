@@ -16,22 +16,22 @@ img_height, img_width = 224, 224
 batch_size = 32
 
 def create_vit_model(img_size, num_classes):
-    """Creates a lightweight Vision Transformer (ViT-Tiny) model."""
+    """Creates a lightweight Vision Transformer (ViT-Tiny) model with smaller patch size."""
     def vit_tiny(input_shape, num_classes):
         inputs = layers.Input(shape=input_shape)
-        # Patch embedding
-        patch_size = 16
-        num_patches = (img_size // patch_size) ** 2
-        projection_dim = 192  # Reduced from 384
+        # Patch embedding with smaller patch size
+        patch_size = 8  # Reduced from 16
+        num_patches = (img_size // patch_size) ** 2  # 784 patches
+        projection_dim = 192
         x = layers.Conv2D(filters=projection_dim, kernel_size=patch_size, strides=patch_size, padding='valid')(inputs)
         x = layers.Reshape((num_patches, projection_dim))(x)
         # Positional embedding
         positions = tf.range(start=0, limit=num_patches, delta=1)
         pos_embedding = layers.Embedding(input_dim=num_patches, output_dim=projection_dim)(positions)
         x = x + pos_embedding
-        # Transformer blocks
-        num_heads = 4  # Reduced from 6
-        for _ in range(8):  # Reduced from 12
+        # Transformer blocks (reduced number)
+        num_heads = 4
+        for _ in range(4):  # Reduced from 8
             x = layers.LayerNormalization(epsilon=1e-6)(x)
             x = layers.MultiHeadAttention(num_heads=num_heads, key_dim=projection_dim // num_heads)(x, x)
             x = layers.Add()([x, x])
@@ -60,25 +60,18 @@ if __name__ == "__main__":
     os.mkdir(val_dir)
     
     # Split dataset into train and validation (80% train, 20% val)
-    val_split = 0.2  # 20% for validation
+    val_split = 0.2
     for class_folder in os.listdir(train_dir):
         class_path = os.path.join(train_dir, class_folder)
         if os.path.isdir(class_path):
-            # Create corresponding validation folder
             val_class_path = os.path.join(val_dir, class_folder)
             os.makedirs(val_class_path)
-            
-            # Get all images in the class folder
             images = [f for f in os.listdir(class_path) if f.lower().endswith('.png')]
             num_images = len(images)
-            num_val = int(num_images * val_split)  # Number of images for validation
-            
-            # Shuffle and split
+            num_val = int(num_images * val_split)
             np.random.shuffle(images)
             val_images = images[:num_val]
             train_images = images[num_val:]
-            
-            # Move validation images
             for img in val_images:
                 src = os.path.join(class_path, img)
                 dst = os.path.join(val_class_path, img)
@@ -88,9 +81,9 @@ if __name__ == "__main__":
     num_classes = len([f for f in os.listdir(train_dir) if os.path.isdir(os.path.join(train_dir, f))])
     print(f"Detected {num_classes} class folders in {train_dir}")
 
-    # Verify dataset size (supports 500 or 1500 images per class)
-    expected_train_images_per_class = 1600  # 80% of 2000 (after augmentation)
-    expected_val_images_per_class = 400     # 20% of 2000
+    # Verify dataset size
+    expected_train_images_per_class = 1600
+    expected_val_images_per_class = 400
     for folder in os.listdir(train_dir):
         folder_path = os.path.join(train_dir, folder)
         if os.path.isdir(folder_path):
@@ -134,7 +127,7 @@ if __name__ == "__main__":
 
     # Create and compile the model
     vit_model, base_model = create_vit_model(img_size=img_height, num_classes=num_classes)
-    initial_learning_rate = 0.0005
+    initial_learning_rate = 0.001  # Increased from 0.0005
     lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
         initial_learning_rate, decay_steps=1000, decay_rate=0.9, staircase=True
     )
@@ -172,7 +165,7 @@ if __name__ == "__main__":
     if val_accuracy < 0.5:
         print("Fine-tuning ViT layers...")
         base_model.trainable = True
-        for layer in base_model.layers[:50]:  # Freeze early layers (approx. first half)
+        for layer in base_model.layers[:50]:
             layer.trainable = False
         vit_model.compile(
             optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5, weight_decay=0.01),

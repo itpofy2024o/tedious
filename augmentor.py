@@ -7,9 +7,6 @@ from PIL import Image
 import random
 import uuid
 import psutil
-import random
-import uuid
-import psutil
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -19,18 +16,16 @@ face_detection = mp_face_detection.FaceDetection(model_selection=1, min_detectio
 
 # Custom preprocessing function for contrast and saturation
 def custom_preprocessing(image):
-    # Random contrast adjustment
-    contrast_factor = random.uniform(0.5, 1.5)  # Expanded range
+    contrast_factor = random.uniform(0.5, 1.5)
     image = tf.image.adjust_contrast(image, contrast_factor)
-    # Random saturation adjustment
-    saturation_factor = random.uniform(0.5, 1.5)  # Expanded range
+    saturation_factor = random.uniform(0.5, 1.5)
     image = tf.image.adjust_saturation(image, saturation_factor)
     return image
 
 def check_disk_space(min_free_gb=5):
     """Check if enough disk space is available."""
     disk = psutil.disk_usage('/')
-    free_gb = disk.free / (1024 ** 3)  # Convert bytes to GB
+    free_gb = disk.free / (1024 ** 3)
     if free_gb < min_free_gb:
         raise RuntimeError(f"Insufficient disk space: {free_gb:.2f}GB free, need at least {min_free_gb}GB.")
     print(f"Disk space check: {free_gb:.2f}GB free.")
@@ -50,14 +45,12 @@ def crop_face(image_path, target_size=(224, 224)):
             width = int(bbox.width * w)
             height = int(bbox.height * h)
 
-            # Ensure the bounding box is within image dimensions
             x = max(0, x)
             y = max(0, y)
             width = min(width, w - x)
             height = min(height, h - y)
 
-            # Crop the face with some padding
-            padding = 0.2  # 20% padding around the face
+            padding = 0.2
             x_padded = max(0, x - int(width * padding))
             y_padded = max(0, y - int(height * padding))
             width_padded = min(w - x_padded, int(width * (1 + 2 * padding)))
@@ -67,10 +60,7 @@ def crop_face(image_path, target_size=(224, 224)):
             if face.size == 0:
                 return None
 
-            # Resize to target size
             face = cv2.resize(face, target_size)
-
-            # Convert back to PIL for saving
             face_pil = Image.fromarray(cv2.cvtColor(face, cv2.COLOR_BGR2RGB))
             return face_pil
     return None
@@ -89,19 +79,19 @@ def augment_images(input_dir, output_dir, images_per_class=1500, target_size=(22
         os.makedirs(output_dir)
 
     # Check disk space before starting
-    # check_disk_space(min_free_gb=2)
+    # check_disk_space(min_free_gb=5)
 
     datagen = ImageDataGenerator(
         rescale=1./255,
-        rotation_range=90,  # Increased for more posture variation
-        width_shift_range=0.2,  # Increased for more shift
-        height_shift_range=0.2,  # Increased for more shift
-        shear_range=0.3,  # Increased for more distortion
-        zoom_range=0.5,  # Increased for more zoom
+        rotation_range=20,  # Reduced from 90
+        width_shift_range=0.2,
+        height_shift_range=0.2,
+        shear_range=0.1,  # Reduced from 0.3
+        zoom_range=0.2,  # Reduced from 0.5
         horizontal_flip=True,
-        brightness_range=[0.5, 1.5],  # Added for lighting variation
+        brightness_range=[0.5, 1.5],
         fill_mode='nearest',
-        preprocessing_function=custom_preprocessing  # Contrast and saturation
+        preprocessing_function=custom_preprocessing
     )
 
     for person_folder in os.listdir(input_dir):
@@ -111,7 +101,6 @@ def augment_images(input_dir, output_dir, images_per_class=1500, target_size=(22
             if not os.path.exists(output_person_path):
                 os.makedirs(output_person_path)
 
-            # Get list of PNG images
             image_files = [f for f in os.listdir(person_path) if f.lower().endswith('.png')]
             num_original_images = len(image_files)
 
@@ -127,7 +116,6 @@ def augment_images(input_dir, output_dir, images_per_class=1500, target_size=(22
                 try:
                     with Image.open(img_path) as img:
                         img.verify()
-                    # Crop face using MediaPipe
                     cropped_img = crop_face(img_path, target_size)
                     if cropped_img is None:
                         print(f"No face detected in {img_file} in {person_folder}. Skipping...")
@@ -141,7 +129,6 @@ def augment_images(input_dir, output_dir, images_per_class=1500, target_size=(22
             num_copied = len(valid_image_files)
             print(f"{person_folder}: Copied {num_copied} cropped original images")
 
-            # Handle case where num_original_images >= images_per_class
             if num_copied >= images_per_class:
                 print(f"{person_folder} has {num_copied} images, selecting {images_per_class}...")
                 all_files = [f for f in os.listdir(output_person_path) if f.lower().endswith('.png')]
@@ -153,7 +140,6 @@ def augment_images(input_dir, output_dir, images_per_class=1500, target_size=(22
                 print(f"Selected {num_copied} cropped images for {person_folder} to {num_generated}/{images_per_class} images.")
                 continue
 
-            # Calculate augmentations needed
             remaining_slots = images_per_class - num_copied
             total_augmentations = 0
             if remaining_slots > 0 and num_copied > 0:
@@ -163,12 +149,10 @@ def augment_images(input_dir, output_dir, images_per_class=1500, target_size=(22
 
                 print(f"{person_folder}: Generating {remaining_slots} augmentations ({augmentations_per_image} per image + {extra_augmentations} extra)")
 
-                # Process in smaller batches to reduce memory/disk usage
                 batch_size = 100
                 for idx, img_file in enumerate(valid_image_files):
                     img_path = os.path.join(person_path, img_file)
                     try:
-                        # Load the cropped image instead of the original
                         cropped_img_path = os.path.join(output_person_path, f'cropped_{idx}.png')
                         img = tf.keras.preprocessing.image.load_img(cropped_img_path, target_size=target_size)
                         x = tf.keras.preprocessing.image.img_to_array(img)
@@ -194,7 +178,6 @@ def augment_images(input_dir, output_dir, images_per_class=1500, target_size=(22
                                 i += 1
                                 total_augmentations += 1
                                 break
-                        # Move temp files to output directory and clean up
                         for temp_file in os.listdir(temp_dir):
                             shutil.move(os.path.join(temp_dir, temp_file), os.path.join(output_person_path, temp_file))
                         shutil.rmtree(temp_dir)
@@ -206,7 +189,6 @@ def augment_images(input_dir, output_dir, images_per_class=1500, target_size=(22
 
                 print(f"{person_folder}: Generated {total_augmentations} augmentations (planned: {planned_augmentations})")
 
-            # Verify and adjust to exactly 1,500 images
             num_generated = len([f for f in os.listdir(output_person_path) if f.lower().endswith('.png')])
             if num_generated > images_per_class:
                 print(f"{person_folder}: Generated {num_generated}, removing {num_generated - images_per_class} excess images...")
