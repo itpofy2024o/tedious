@@ -59,13 +59,38 @@ if __name__ == "__main__":
         shutil.rmtree(val_dir)
     os.mkdir(val_dir)
     
+    # Split dataset into train and validation (80% train, 20% val)
+    val_split = 0.2  # 20% for validation
+    for class_folder in os.listdir(train_dir):
+        class_path = os.path.join(train_dir, class_folder)
+        if os.path.isdir(class_path):
+            # Create corresponding validation folder
+            val_class_path = os.path.join(val_dir, class_folder)
+            os.makedirs(val_class_path)
+            
+            # Get all images in the class folder
+            images = [f for f in os.listdir(class_path) if f.lower().endswith('.png')]
+            num_images = len(images)
+            num_val = int(num_images * val_split)  # Number of images for validation
+            
+            # Shuffle and split
+            np.random.shuffle(images)
+            val_images = images[:num_val]
+            train_images = images[num_val:]
+            
+            # Move validation images
+            for img in val_images:
+                src = os.path.join(class_path, img)
+                dst = os.path.join(val_class_path, img)
+                shutil.move(src, dst)
+    
     # Dynamically determine number of classes
     num_classes = len([f for f in os.listdir(train_dir) if os.path.isdir(os.path.join(train_dir, f))])
     print(f"Detected {num_classes} class folders in {train_dir}")
 
     # Verify dataset size (supports 500 or 1500 images per class)
-    expected_train_images_per_class = 1200  # 80% of 1500 (or 400 for 500/class)
-    expected_val_images_per_class = 300    # 20% of 1500 (or 100 for 500/class)
+    expected_train_images_per_class = 1600  # 80% of 2000 (after augmentation)
+    expected_val_images_per_class = 400     # 20% of 2000
     for folder in os.listdir(train_dir):
         folder_path = os.path.join(train_dir, folder)
         if os.path.isdir(folder_path):

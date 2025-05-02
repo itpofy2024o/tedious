@@ -7,14 +7,23 @@ from PIL import Image
 import random
 import uuid
 import psutil
+import random
+import uuid
+import psutil
+import cv2
+import mediapipe as mp
+import numpy as np
+
+mp_face_detection = mp.solutions.face_detection
+face_detection = mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5)
 
 # Custom preprocessing function for contrast and saturation
 def custom_preprocessing(image):
     # Random contrast adjustment
-    contrast_factor = random.uniform(0.8, 1.2)
+    contrast_factor = random.uniform(0.5, 1.5)  # Expanded range
     image = tf.image.adjust_contrast(image, contrast_factor)
     # Random saturation adjustment
-    saturation_factor = random.uniform(0.8, 1.2)
+    saturation_factor = random.uniform(0.5, 1.5)  # Expanded range
     image = tf.image.adjust_saturation(image, saturation_factor)
     return image
 
@@ -26,6 +35,55 @@ def check_disk_space(min_free_gb=5):
         raise RuntimeError(f"Insufficient disk space: {free_gb:.2f}GB free, need at least {min_free_gb}GB.")
     print(f"Disk space check: {free_gb:.2f}GB free.")
 
+def crop_face(image_path, target_size=(224, 224)):
+    """Crop the face from an image using MediaPipe."""
+    img = cv2.imread(image_path)
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    results = face_detection.process(img_rgb)
+
+    if results.detections:
+        for detection in results.detections:
+            bbox = detection.location_data.relative_bounding_box
+            h, w, _ = img.shape
+            x = int(bbox.xmin * w)
+            y = int(bbox.ymin * h)
+            width = int(bbox.width * w)
+            height = int(bbox.height * h)
+
+            # Ensure the bounding box is within image dimensions
+            x = max(0, x)
+            y = max(0, y)
+            width = min(width, w - x)
+            height = min(height, h - y)
+
+            # Crop the face with some padding
+            padding = 0.2  # 20% padding around the face
+            x_padded = max(0, x - int(width * padding))
+            y_padded = max(0, y - int(height * padding))
+            width_padded = min(w - x_padded, int(width * (1 + 2 * padding)))
+            height_padded = min(h - y_padded, int(height * (1 + 2 * padding)))
+
+            face = img[y_padded:y_padded + height_padded, x_padded:x_padded + width_padded]
+            if face.size == 0:
+                return None
+
+            # Resize to target size
+            face = cv2.resize(face, target_size)
+
+            # Convert back to PIL for saving
+            face_pil = Image.fromarray(cv2.cvtColor(face, cv2.COLOR_BGR2RGB))
+            return face_pil
+    return None
+
+def validate_image(image_path):
+    """Validate if an image file is readable and non-corrupted."""
+    try:
+        with Image.open(image_path) as img:
+            img.verify()
+        return True
+    except Exception:
+        return False
+
 def augment_images(input_dir, output_dir, images_per_class=1500, target_size=(224, 224)):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -35,13 +93,13 @@ def augment_images(input_dir, output_dir, images_per_class=1500, target_size=(22
 
     datagen = ImageDataGenerator(
         rescale=1./255,
-        rotation_range=30,  # Increased for more posture variation
-        width_shift_range=0.1,  # Increased for more shift
-        height_shift_range=0.1,  # Increased for more shift
-        shear_range=0.1,  # Increased for more distortion
-        zoom_range=0.3,  # Increased for more zoom
+        rotation_range=90,  # Increased for more posture variation
+        width_shift_range=0.2,  # Increased for more shift
+        height_shift_range=0.2,  # Increased for more shift
+        shear_range=0.3,  # Increased for more distortion
+        zoom_range=0.5,  # Increased for more zoom
         horizontal_flip=True,
-        brightness_range=[0.6, 1.5],  # Added for lighting variation
+        brightness_range=[0.5, 1.5],  # Added for lighting variation
         fill_mode='nearest',
         preprocessing_function=custom_preprocessing  # Contrast and saturation
     )
@@ -63,39 +121,37 @@ def augment_images(input_dir, output_dir, images_per_class=1500, target_size=(22
 
             print(f"{person_folder}: Found {num_original_images} original images")
 
-            # Handle case where num_original_images >= images_per_class
-            if num_original_images >= images_per_class:
-                print(f"{person_folder} has {num_original_images} images, selecting {images_per_class}...")
-                for idx, img_file in enumerate(image_files[:images_per_class]):
-                    img_path = os.path.join(person_path, img_file)
-                    try:
-                        with Image.open(img_path) as img:
-                            img.verify()
-                        img = tf.keras.preprocessing.image.load_img(img_path, target_size=target_size)
-                        img.save(os.path.join(output_person_path, f'original_{idx}.png'))
-                    except Exception as e:
-                        print(f"Error processing {img_file} in {person_folder}: {str(e)}")
-                        continue
-                num_generated = len([f for f in os.listdir(output_person_path) if f.lower().endswith('.png')])
-                print(f"Selected {num_original_images} images for {person_folder} to {num_generated}/{images_per_class} images.")
-                continue
-
-            # Copy all original images
             valid_image_files = []
             for idx, img_file in enumerate(image_files):
                 img_path = os.path.join(person_path, img_file)
                 try:
                     with Image.open(img_path) as img:
                         img.verify()
-                    img = tf.keras.preprocessing.image.load_img(img_path, target_size=target_size)
-                    img.save(os.path.join(output_person_path, f'original_{idx}.png'))
+                    # Crop face using MediaPipe
+                    cropped_img = crop_face(img_path, target_size)
+                    if cropped_img is None:
+                        print(f"No face detected in {img_file} in {person_folder}. Skipping...")
+                        continue
+                    cropped_img.save(os.path.join(output_person_path, f'cropped_{idx}.png'))
                     valid_image_files.append(img_file)
                 except Exception as e:
-                    print(f"Error processing {img_file in {person_folder}: {str(e)}}")
+                    print(f"Error processing {img_file} in {person_folder}: {str(e)}")
                     continue
 
             num_copied = len(valid_image_files)
-            print(f"{person_folder}: Copied {num_copied} original images")
+            print(f"{person_folder}: Copied {num_copied} cropped original images")
+
+            # Handle case where num_original_images >= images_per_class
+            if num_copied >= images_per_class:
+                print(f"{person_folder} has {num_copied} images, selecting {images_per_class}...")
+                all_files = [f for f in os.listdir(output_person_path) if f.lower().endswith('.png')]
+                all_files.sort()
+                excess_files = all_files[images_per_class:]
+                for f in excess_files:
+                    os.remove(os.path.join(output_person_path, f))
+                num_generated = len([f for f in os.listdir(output_person_path) if f.lower().endswith('.png')])
+                print(f"Selected {num_copied} cropped images for {person_folder} to {num_generated}/{images_per_class} images.")
+                continue
 
             # Calculate augmentations needed
             remaining_slots = images_per_class - num_copied
@@ -112,7 +168,9 @@ def augment_images(input_dir, output_dir, images_per_class=1500, target_size=(22
                 for idx, img_file in enumerate(valid_image_files):
                     img_path = os.path.join(person_path, img_file)
                     try:
-                        img = tf.keras.preprocessing.image.load_img(img_path, target_size=target_size)
+                        # Load the cropped image instead of the original
+                        cropped_img_path = os.path.join(output_person_path, f'cropped_{idx}.png')
+                        img = tf.keras.preprocessing.image.load_img(cropped_img_path, target_size=target_size)
                         x = tf.keras.preprocessing.image.img_to_array(img)
                         x = x.reshape((1,) + x.shape)
                         num_augs = augmentations_per_image + (1 if idx < extra_augmentations else 0)
@@ -128,6 +186,11 @@ def augment_images(input_dir, output_dir, images_per_class=1500, target_size=(22
                                 save_prefix=f'augmented_{idx}_{uuid.uuid4().hex[:8]}',
                                 save_format='png'
                             ):
+                                aug_path = os.path.join(temp_dir, os.listdir(temp_dir)[0])
+                                if not validate_image(aug_path):
+                                    print(f"Generated augmented image {aug_path} is corrupted. Skipping...")
+                                    os.remove(aug_path)
+                                    continue
                                 i += 1
                                 total_augmentations += 1
                                 break
@@ -163,9 +226,9 @@ def augment_images(input_dir, output_dir, images_per_class=1500, target_size=(22
                     os.makedirs(temp_dir)
                 for _ in range(images_per_class - num_generated):
                     img_file = random.choice(valid_image_files)
-                    img_path = os.path.join(person_path, img_file)
+                    cropped_img_path = os.path.join(output_person_path, f'cropped_{valid_image_files.index(img_file)}.png')
                     try:
-                        img = tf.keras.preprocessing.image.load_img(img_path, target_size=target_size)
+                        img = tf.keras.preprocessing.image.load_img(cropped_img_path, target_size=target_size)
                         x = tf.keras.preprocessing.image.img_to_array(img)
                         x = x.reshape((1,) + x.shape)
                         for batch in datagen.flow(
@@ -175,6 +238,11 @@ def augment_images(input_dir, output_dir, images_per_class=1500, target_size=(22
                             save_prefix=f'augmented_extra_{uuid.uuid4().hex[:8]}',
                             save_format='png'
                         ):
+                            aug_path = os.path.join(temp_dir, os.listdir(temp_dir)[0])
+                            if not validate_image(aug_path):
+                                print(f"Generated extra augmented image {aug_path} is corrupted. Skipping...")
+                                os.remove(aug_path)
+                                continue
                             break
                     except Exception as e:
                         print(f"Error in extra augmentation for {img_file} in {person_folder}: {str(e)}")
@@ -188,7 +256,7 @@ def augment_images(input_dir, output_dir, images_per_class=1500, target_size=(22
             if num_generated != images_per_class:
                 print(f"Warning: {person_folder} has {num_generated}/{images_per_class} images after {attempts} attempts!")
             else:
-                print(f"Augmented {num_copied} images for {person_folder} to {num_generated}/{images_per_class} images.")
+                print(f"Augmented {num_copied} cropped images for {person_folder} to {num_generated}/{images_per_class} images.")
 
 if __name__ == "__main__":
     input_image_directory = sys.argv[1]
