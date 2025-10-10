@@ -1,0 +1,12 @@
+Here’s a closer look.
+
+Federal income tax
+Non-residents with US-sourced income via an LLC are taxed only on that income: the IRS will tax US-based profits and not global earnings for non-citizens. LLCs are “pass-through” entities so income flows directly to the owners, who then report it on their individual tax returns. If you’re receiving income from an LLC and need to file a US tax return but don’t have a Social Security number, you’ll need an Individual Taxpayer Identification Number (ITIN).
+
+State and local taxes
+Different states have different business taxes and tax rates. For example, Wyoming and Nevada have no income tax, while California does and imposes an $800 annual tax on all LLCs that do business in the state. If you’re selling products in the US, you might need to collect and remit sales tax in any state where you have a “sales tax nexus” (generally a physical presence or certain sales volume in the state, but this definition varies by state). LLCs must carefully review the tax laws of any state where they do business, even remotely, to ensure they’re fulfilling all tax obligations. If your LLC will handle employment, sales, or other specific taxes, register with the state’s department of revenue or relevant agencies.
+
+Tax forms
+Non-resident owners must file Form 1040-NR to report and pay taxes on their US-based income. If you’re part of a multi-member LLC, the LLC must also file Form 1065. Although the LLC itself isn’t paying taxes, this form discloses income, expenses, and earnings allocated to members.
+
+Non-resident LLC owners must also submit Form 5472 and Form 1120 if the LLC is 25% or more foreign-owned or if it transacts with a foreign party. These forms disclose the foreign ownership details and any related transactions.
